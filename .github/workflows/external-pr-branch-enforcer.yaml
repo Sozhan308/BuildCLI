@@ -1,51 +1,67 @@
 name: External PR Branch Enforcer
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, edited, synchronize]
+    branches:
+      - main
+      - master
 
 permissions:
   pull-requests: write
   issues: write
+  contents: write
 
 jobs:
   check-target-branch:
     runs-on: ubuntu-latest
     steps:
+      - name: Debug Event
+        run: |
+          echo "Event name: ${{ github.event_name }}"
+          echo "PR base ref: ${{ github.event.pull_request.base.ref }}"
+          echo "Author association: ${{ github.event.pull_request.author_association }}"
+
       - name: Check PR target branch
-        if: github.event.pull_request.base.ref != 'develop' && (github.event.pull_request.author_association != 'OWNER' && github.event.pull_request.author_association != 'MEMBER')
+        if: always()
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            console.log('Starting PR check...');
             const pr = context.payload.pull_request;
-            console.log('Debug - PR Details:', {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              prNumber: pr.number,
-              baseRef: pr.base.ref,
-              authorAssociation: pr.author_association
+            
+            if (!pr) {
+              console.log('No PR found in payload');
+              return;
+            }
+            
+            console.log('PR Details:', {
+              base: pr.base.ref,
+              author: pr.author_association,
+              number: pr.number
             });
             
-            try {
-              await github.rest.issues.createComment({
-                ...context.repo,
-                issue_number: pr.number,
-                body: '🤖 Attention! Always use the develop branch for your PRs instead of ' + pr.base.ref + '.' 
-              });
-              
-              await github.rest.pulls.update({
-                ...context.repo,
-                pull_number: pr.number,
-                base: 'develop'
-              });
-              
-              await github.rest.issues.createComment({
-                ...context.repo,
-                issue_number: pr.number,
-                body: '🤖 I\'ve automatically updated this PR to target the develop branch.'
-              });
-            } catch (error) {
-              console.error('Error:', error.message);
-              throw error;
+            if (pr.base.ref !== 'develop' && 
+                !['OWNER', 'MEMBER'].includes(pr.author_association)) {
+              try {
+                await github.rest.issues.createComment({
+                  ...context.repo,
+                  issue_number: pr.number,
+                  body: '🤖 Attention! Always use the develop branch for your PRs instead of ' + pr.base.ref + '.' 
+                });
+                
+                await github.rest.pulls.update({
+                  ...context.repo,
+                  pull_number: pr.number,
+                  base: 'develop'
+                });
+                
+                console.log('Successfully updated PR target branch');
+              } catch (error) {
+                console.error('Error:', error);
+                throw error;
+              }
+            } else {
+              console.log('No action needed: PR is either targeting develop or from a repository member');
             }

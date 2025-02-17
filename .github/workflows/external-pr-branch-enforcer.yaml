@@ -18,9 +18,10 @@ jobs:
           echo "Event name: ${{ github.event_name }}"
           echo "PR base ref: ${{ github.event.pull_request.base.ref }}"
           echo "Author association: ${{ github.event.pull_request.author_association }}"
+          echo "PR author: ${{ github.event.pull_request.user.login }}"
+          echo "Repo owner: ${{ github.repository_owner }}"
 
       - name: Check PR target branch
-        if: always()
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -28,19 +29,15 @@ jobs:
             console.log('Starting PR check...');
             const pr = context.payload.pull_request;
             
-            if (!pr) {
-              console.log('No PR found in payload');
-              return;
-            }
-            
             console.log('PR Details:', {
               base: pr.base.ref,
               author: pr.author_association,
+              prAuthor: pr.user.login,
+              repoOwner: context.repo.owner,
               number: pr.number
             });
             
-            if (pr.base.ref !== 'develop' && 
-                !['OWNER', 'MEMBER'].includes(pr.author_association)) {
+            if (pr.base.ref !== 'develop') {
               try {
                 await github.rest.issues.createComment({
                   ...context.repo,
@@ -60,5 +57,5 @@ jobs:
                 throw error;
               }
             } else {
-              console.log('No action needed: PR is either targeting develop or from a repository member');
+              console.log('No action needed: PR is already targeting develop');
             }

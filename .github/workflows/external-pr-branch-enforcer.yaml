@@ -3,9 +3,6 @@ name: External PR Branch Enforcer
 on:
   pull_request:
     types: [opened, edited, synchronize]
-    branches:
-      - main
-      - master
 
 permissions:
   pull-requests: write
